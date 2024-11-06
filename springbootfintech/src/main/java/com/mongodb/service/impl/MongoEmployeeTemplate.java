@@ -1,9 +1,40 @@
 package com.mongodb.service.impl;
 
 import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+
+import javax.management.Query;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.data.web.SpringDataWebProperties.Sort;
+import org.springframework.context.annotation.Bean;
+import org.springframework.data.mongodb.MongoDatabaseFactory;
+import org.springframework.data.mongodb.MongoTransactionManager;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.GroupOperation;
+import org.springframework.data.mongodb.core.aggregation.MatchOperation;
+import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
+import org.springframework.data.mongodb.core.aggregation.SortOperation;
+import org.springframework.data.mongodb.core.aggregation.TypedAggregation;
+import org.springframework.data.mongodb.core.aggregation.VariableOperators.Map;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Update;
 
+import com.mongodb.ReadConcern;
+import com.mongodb.ReadPreference;
+import com.mongodb.TransactionOptions;
+import com.mongodb.WriteConcern;
+import com.mongodb.client.ClientSession;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.Updates;
+import com.mongodb.client.result.UpdateResult;
 import com.mongodb.model.MongoEmployee;
 
 public class MongoEmployeeTemplate {
@@ -24,9 +55,9 @@ public class MongoEmployeeTemplate {
 	
 	public void  insertEmployee() {
 
-		MongoEmployee employee = new MongoEmployee(1, "小明", 30, 10000.00, new Date());
+		MongoEmployee employee = new MongoEmployee(1, "n0", 30, 10000.00, new Date());
 
-	    // sava:  _id
+	    // save:  _id
 	    //mongoTemplate.save(employee);
 	    // insert： _id
 	    mongoTemplate.insert(employee);
@@ -38,126 +69,135 @@ public class MongoEmployeeTemplate {
 	            new MongoEmployee(5, "n4", 28, 6000.00, new Date()),
 	            new MongoEmployee(6, "n5", 24, 7000.00, new Date()),
 	            new MongoEmployee(7, "n6", 28, 12000.00, new Date()));
-	    //插入多条数据
+	    
+	    //insert multiple data
 	    mongoTemplate.insert(list, MongoEmployee.class);
 	}
 	
-	public void testFind() {
-	    System.out.println("==========查询所有文档===========");
-	    //查询所有文档
-	    List<Employee> list = mongoTemplate.findAll(Employee.class);
+	public void documentFind() {
+	    System.out.println("==========query all documents===========");
+	    //query all datas
+	    List<MongoEmployee> list = mongoTemplate.findAll(MongoEmployee.class);
 	    list.forEach(System.out::println);
 
-	    System.out.println("==========根据_id查询===========");
-	    //根据_id查询
-	    Employee e = mongoTemplate.findById(1, Employee.class);
+	    System.out.println("==========query by ID===========");
+	    //query by ID
+	    MongoEmployee e = mongoTemplate.findById(1, MongoEmployee.class);
 	    System.out.println(e);
 
-	    System.out.println("==========findOne返回第一个文档===========");
-	    //如果查询结果是多个，返回其中第一个文档对象
-	    Employee one = mongoTemplate.findOne(new Query(), Employee.class);
+	    System.out.println("==========findOne find the first row===========");
+	    //return the first row
+	    MongoEmployee one = mongoTemplate.findOne(new Query(), MongoEmployee.class);
 	    System.out.println(one);
 
-	    System.out.println("==========条件查询===========");
-	    //new Query() 表示没有条件
-	    //查询薪资大于等于8000的员工
+	    System.out.println("==========conditional query===========");
+	    //new Query() no condition
+	    
+	    //Query employees with a salary greater than or equal to 8000
 	    //Query query = new Query(Criteria.where("salary").gte(8000));
-	    //查询薪资大于4000小于10000的员工
+	    
+	    //Query employees with salaries greater than 4000 and less than 10000
 	    //Query query = new Query(Criteria.where("salary").gt(4000).lt(10000));
-	    //正则查询（模糊查询）  java中正则不需要有//
-	    //Query query = new Query(Criteria.where("name").regex("张"));
+	    
+	    //Regular query (fuzzy query) Java regex does not need //
+	    //Query query = new Query(Criteria.where("name").regex("chong"));
 
-	    //and  or  多条件查询
+	    //and or multi-condition query
 	    Criteria criteria = new Criteria();
-	    //and  查询年龄大于25&薪资大于8000的员工
+	    
+	    //and query employees whose age is greater than 25 and salary is greater than 8000
 	    //criteria.andOperator(Criteria.where("age").gt(25),Criteria.where("salary").gt(8000));
-	    //or 查询姓名是张三或者薪资大于8000的员工
-	    criteria.orOperator(Criteria.where("name").is("张三"), Criteria.where("salary").gt(5000));
+	    
+	    //or query employees whose name is name3 or salary is greater than 8000
+	    criteria.orOperator(Criteria.where("name").is(" name3"), Criteria.where("salary").gt(5000));
 	    Query query = new Query(criteria);
 
-	    //sort排序
+	    //sort 
 	    //query.with(Sort.by(Sort.Order.desc("salary")));
 
 
-	    //skip limit 分页  skip用于指定跳过记录数，limit则用于限定返回结果数量。
+	    //skip limit pagination skip is used to specify the number of records to skip
+	    //while limit is used to restrict the number of results returned.
 	    query.with(Sort.by(Sort.Order.desc("salary")))
-	            .skip(0)  //指定跳过记录数
-	            .limit(4);  //每页显示记录数
+	            .skip(0)  //Specify the number of records to skip
+	            .limit(4);  //Number of records displayed per page
 
 
-	    //查询结果
-	    List<Employee> employees = mongoTemplate.find(
-	            query, Employee.class);
+	    //query result
+	    List<MongoEmployee> employees = mongoTemplate.find(
+	            query, MongoEmployee.class);
 	    employees.forEach(System.out::println);
 	} 
 	
-	public void testFindByJson() {
+	public void dataFindByJson() {
 
-	    //使用json字符串方式查询
-	    //等值查询
-	    //String json = "{name:'张三'}";
-	    //多条件查询
+	    //Using JSON string format for query
+		
+	    //Equivalence query
+	    //String json = "{name:' name3'}";
+		
+	    //Multi-condition query
 	    String json = "{$or:[{age:{$gt:25}},{salary:{$gte:8000}}]}";
 	    Query query = new BasicQuery(json);
 
-	    //查询结果
-	    List<Employee> employees = mongoTemplate.find(
-	            query, Employee.class);
+	    //query result
+	    List<MongoEmployee> employees = mongoTemplate.find(
+	            query, MongoEmployee.class);
 	    employees.forEach(System.out::println);
 	}
 
 	public void testUpdate() {
 
-	    //query设置查询条件
+	    //conditional query 
 	    Query query = new Query(Criteria.where("salary").gte(15000));
 
-	    System.out.println("==========更新前===========");
-	    List<Employee> employees = mongoTemplate.find(query, Employee.class);
+	    System.out.println("========== before change===========");
+	    List<MongoEmployee> employees = mongoTemplate.find(query, MongoEmployee.class);
 	    employees.forEach(System.out::println);
 
 	    Update update = new Update();
-	    //设置更新属性
+	    // set  change attribute
 	    update.set("salary", 13000);
 
-	    //updateFirst() 只更新满足条件的第一条记录
+	    //updateFirst() Only change the first record that meets the conditions.
 	    //UpdateResult updateResult = mongoTemplate.updateFirst(query, update, Employee.class);
-	    //updateMulti() 更新所有满足条件的记录
+	    //updateMulti()  Change all records that meet the criteria.
 	    //UpdateResult updateResult = mongoTemplate.updateMulti(query, update, Employee.class);
 
-	    //upsert() 没有符合条件的记录则插入数据
+	    //upsert() If there are no matching records, then insert the data.
 	    //update.setOnInsert("id",11);  //指定_id
-	    UpdateResult updateResult = mongoTemplate.upsert(query, update, Employee.class);
+	    UpdateResult updateResult = mongoTemplate.upsert(query, update, MongoEmployee.class);
 
-	    //返回修改的记录数
+	    // get Number of modified records
 	    System.out.println(updateResult.getModifiedCount());
-	    //返回匹配的记录数
+	    // get Number of matching records
 	    System.out.println(updateResult.getMatchedCount());
 
 
-	    System.out.println("==========更新后===========");
-	    employees = mongoTemplate.find(query, Employee.class);
+	    System.out.println("==========after change===========");
+	    employees = mongoTemplate.find(query, MongoEmployee.class);
 	    employees.forEach(System.out::println);
 	}
 
 	public void testDelete() {
 
-	    //删除所有文档
+	    // delete all data
 	    //mongoTemplate.remove(new Query(),Employee.class);
 
-	    //条件删除
+	    //conditional delete
 	    Query query = new Query(Criteria.where("salary").gte(10000));
 	    mongoTemplate.remove(query, Employee.class);
 
 	}
 
-	// 以聚合管道示例2为例
-	// 返回人口超过1000万的州
+	//Taking the example of Aggregation Pipeline Example 2
+	//Get states with a population exceeding 10 million
 	db.zips.aggregate( [
 	   { $group: { _id: "$state", totalPop: { $sum: "$pop" } } },
 	   { $match: { totalPop: { $gt: 10*1000*1000 } } }
 	] )
 
-	@Test
+	 
 	public void test(){
 	    //$group
 	    GroupOperation groupOperation = Aggregation
@@ -167,28 +207,28 @@ public class MongoEmployeeTemplate {
 	    MatchOperation matchOperation = Aggregation.match(
 	            Criteria.where("totalPop").gte(10*1000*1000));
 
-	    // 按顺序组合每一个聚合步骤
+	    //Combine each aggregation step in order
 	    TypedAggregation<Zips> typedAggregation = Aggregation.newAggregation(
 	            Zips.class, groupOperation, matchOperation);
 
-	    //执行聚合操作,如果不使用 Map，也可以使用自定义的实体类来接收数据
+	    //Perform aggregation operations. If you don't use a Map, you can also use a custom entity class to receive data
 	    AggregationResults<Map> aggregationResults = mongoTemplate
 	            .aggregate(typedAggregation, Map.class);
-	    // 取出最终结果
+	    //Retrieve the final result
 	    List<Map> mappedResults = aggregationResults.getMappedResults();
 	    for(Map map:mappedResults){
 	        System.out.println(map);
 	    }
 	}
 
-	// 返回各州平均城市人口
+	//Get the average urban population of each state
 	db.zips.aggregate( [
 	   { $group: { _id: { state: "$state", city: "$city" }, cityPop: { $sum: "$pop" } } },
 	   { $group: { _id: "$_id.state", avgCityPop: { $avg: "$cityPop" } } },
 	   { $sort:{avgCityPop:-1}}
 	] )
 
-	@Test
+	 
 	public void test2(){
 	    //$group
 	    GroupOperation groupOperation = Aggregation
@@ -200,21 +240,21 @@ public class MongoEmployeeTemplate {
 	    SortOperation sortOperation = Aggregation
 	            .sort(Sort.Direction.DESC,"avgCityPop");
 
-	    // 按顺序组合每一个聚合步骤
+	    //Combine each aggregation step in order
 	    TypedAggregation<Zips> typedAggregation = Aggregation.newAggregation(
 	            Zips.class, groupOperation, groupOperation2,sortOperation);
 
-	    //执行聚合操作,如果不使用 Map，也可以使用自定义的实体类来接收数据
+	    //Perform aggregation operations. If you don't use a Map, you can also use a custom entity class to receive data
 	    AggregationResults<Map> aggregationResults = mongoTemplate
 	            .aggregate(typedAggregation, Map.class);
-	    // 取出最终结果
+	    //Retrieve the final result
 	    List<Map> mappedResults = aggregationResults.getMappedResults();
 	    for(Map map:mappedResults){
 	        System.out.println(map);
 	    }
 	}
 
-	// 按州返回最大和最小的城市
+	//Get the largest and smallest cities by state
 	db.zips.aggregate( [
 	   { $group:
 	      {
@@ -244,7 +284,7 @@ public class MongoEmployeeTemplate {
 
 
 
-	@Test
+	 
 	public void test3(){
 	    //$group
 	    GroupOperation groupOperation = Aggregation
@@ -279,15 +319,15 @@ public class MongoEmployeeTemplate {
 	            .sort(Sort.Direction.ASC,"state");
 
 
-	    // 按顺序组合每一个聚合步骤
+	    // Combine each aggregation step in order
 	    TypedAggregation<Zips> typedAggregation = Aggregation.newAggregation(
 	            Zips.class, groupOperation, sortOperation, groupOperation2,
 	            projectionOperation,sortOperation2);
 
-	    //执行聚合操作,如果不使用 Map，也可以使用自定义的实体类来接收数据
+	    //Perform aggregation operations. If you don't use a Map, you can also use a custom entity class to receive data.
 	    AggregationResults<Map> aggregationResults = mongoTemplate
 	            .aggregate(typedAggregation, Map.class);
-	    // 取出最终结果
+	    //Retrieve the final result
 	    List<Map> mappedResults = aggregationResults.getMappedResults();
 	    for(Map map:mappedResults){
 	        System.out.println(map);
@@ -296,50 +336,49 @@ public class MongoEmployeeTemplate {
 	}
  
 	/**
-	 * 事务操作API
-	 * https://docs.mongodb.com/upcoming/core/transactions/
-	 */
-	@Test
+	 * transactions API
+	 * https://docs.mongodb.com/upcoming/core/tranlocsactions/
+	 */	 
 	public void updateEmployeeInfo() {
-	    //连接复制集
-	    MongoClient client = MongoClients.create("mongodb://root:root@192.168.56.10:28017,192.168.56.10:28018,192.168.56.10:28019/test?authSource=admin&replicaSet=rs0");
+	    //Connect to the replica Collection
+	    MongoClient client = MongoClients.create("mongodb://root:root@localhost:28017,localhost:28018,localhost:28019/test?authSource=admin&replicaSet=rs0");
 
 	    MongoCollection<Document> emp = client.getDatabase("test").getCollection("emp");
 	    MongoCollection<Document> events = client.getDatabase("test").getCollection("events");
-	    //事务操作配置
+	    //transaction configuration
 	    TransactionOptions txnOptions = TransactionOptions.builder()
 	            .readPreference(ReadPreference.primary())
 	            .readConcern(ReadConcern.MAJORITY)
 	            .writeConcern(WriteConcern.MAJORITY)
 	            .build();
 	    try (ClientSession clientSession = client.startSession()) {
-	        //开启事务
+	        //start transaction
 	        clientSession.startTransaction(txnOptions);
 
 	        try {
-
 	            emp.updateOne(clientSession,
-	                    Filters.eq("username", "张三"),
+	                    Filters.eq("username", " name3"),
 	                    Updates.set("status", "inactive"));
 
 	            int i=1/0;
 
 	            events.insertOne(clientSession,
-	                    new Document("username", "张三").append("status", new Document("new", "inactive").append("old", "Active")));
+	                    new Document("username", " name3").append("status", new Document("new", "inactive").append("old", "Active")));
 
-	            //提交事务
+	            //commit Transaction
 	            clientSession.commitTransaction();
 
 	        }catch (Exception e){
 	            e.printStackTrace();
-	            //回滚事务
+	            //rollback Transaction
 	            clientSession.abortTransaction();
 	        }
 	    }
 	}
+	
 	@Bean
 	MongoTransactionManager transactionManager(MongoDatabaseFactory factory){
-	    //事务操作配置
+	//transaction configuration
 	TransactionOptions txnOptions = TransactionOptions.builder()
 	        .readPreference(ReadPreference.primary())
 	        .readConcern(ReadConcern.MAJORITY)
@@ -347,7 +386,5 @@ public class MongoEmployeeTemplate {
 	        .build();
 	    return new MongoTransactionManager(factory);
 	}
-
- 
 
 }

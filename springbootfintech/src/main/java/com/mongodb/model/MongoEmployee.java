@@ -35,7 +35,8 @@ public class MongoEmployee {
     @Field
     private Date birthday;
     
-    @ApiModelProperty(value = "Email")
+    //The @ApiModelProperty annotation is used to annotate the properties of a Java class, indicating that this property is a Swagger model property.
+    @ApiModelProperty(value = "Email", required = true)
     private String email;
 
     @ApiModelProperty(value = "nickname")
